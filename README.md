@@ -1,15 +1,16 @@
-# CART3R GD AI
+# CART3R GD AI v0.2.0
 
-Android Geometry Dash 2.2081 / Geode SDK 5.11.2 project.
+Android Geometry Dash 2.2081 / Geode SDK 5.11.2.
 
-## Build
+## Install/build
 
-1. Upload the contents of this folder to a new GitHub repository.
-2. Open **Actions**.
-3. Select **Build Android Geode mod**.
-4. Press **Run workflow** on the `main` branch.
-5. Open the completed run and download the `CART3R-GD-AI-Android64` artifact.
+Upload the project contents to the GitHub repository, replacing the old files. Run the `Build Android Geode mod` workflow, then download the `CART3R-GD-AI-Android64` artifact.
 
-## Current prototype status
+## Controls in this version
 
-This is the project scaffold and first learning-memory prototype. It includes a basic Q-learning update rule, but it does **not** yet observe obstacles, press/release the in-game controls, or learn from real attempts. Those gameplay connections are the next implementation milestone; a successful build would not mean the AI can play yet.
+Open Geode > CART3R GD AI > Settings:
+- Training Enabled
+- Learning Rate
+- Training Speed
+
+These are prototype settings only. This build does not yet observe gameplay, press/release the jump input, count attempts, or learn from real level outcomes. The next stage is connecting those systems.

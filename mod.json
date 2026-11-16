@@ -5,7 +5,31 @@
     },
     "id": "carter.gdai",
     "name": "CART3R GD AI",
-    "version": "v0.1.0",
+    "version": "v0.2.0",
     "developer": "CART3R",
-    "description": "Experimental foundation for an AI that learns Geometry Dash through repeated attempts."
+    "description": "Experimental AI training controls for Geometry Dash. Gameplay control and learning from real attempts are not implemented yet.",
+    "settings": {
+        "training-enabled": {
+            "name": "Training Enabled",
+            "description": "Turns the prototype training controller on or off. This does not control the player yet.",
+            "type": "bool",
+            "default": false
+        },
+        "learning-rate": {
+            "name": "Learning Rate",
+            "description": "How strongly the prototype updates its stored values.",
+            "type": "float",
+            "default": 0.1,
+            "min": 0.01,
+            "max": 1.0
+        },
+        "training-speed": {
+            "name": "Training Speed",
+            "description": "Prototype update speed setting. This does not change game speed.",
+            "type": "int",
+            "default": 5,
+            "min": 1,
+            "max": 20
+        }
+    }
 }
