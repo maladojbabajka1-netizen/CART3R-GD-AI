@@ -5,9 +5,9 @@
 
 using namespace geode::prelude;
 
-// First prototype: a small Q-learning memory system.
-// The next development step is connecting observations and actions
-// to Geometry Dash gameplay. This file does not yet control the player.
+// Prototype Q-learning memory. This version exposes basic controls through
+// Geode's generated mod settings. It does NOT yet read gameplay or control
+// the player's jump button.
 
 namespace {
     enum class Action {
@@ -22,7 +22,8 @@ namespace {
     class LearningAI {
     public:
         float learningRate = 0.10f;
-        float discount = 0.90f;
+        int trainingSpeed = 5;
+        bool enabled = false;
         std::unordered_map<int, StateMemory> memory;
 
         Action chooseAction(int state) {
@@ -33,16 +34,18 @@ namespace {
         void learn(int state, Action action, float reward, int nextState) {
             auto& current = memory[state].values;
             auto& next = memory[nextState].values;
-
             int index = static_cast<int>(action);
             float bestFuture = std::max(next[0], next[1]);
 
             current[index] += learningRate *
-                (reward + discount * bestFuture - current[index]);
+                (reward + 0.90f * bestFuture - current[index]);
         }
 
-        void reset() {
-            memory.clear();
+        void syncSettings() {
+            auto mod = Mod::get();
+            enabled = mod->getSettingValue<bool>("training-enabled");
+            learningRate = mod->getSettingValue<float>("learning-rate");
+            trainingSpeed = mod->getSettingValue<int>("training-speed");
         }
     };
 
@@ -50,7 +53,8 @@ namespace {
 }
 
 $on_mod(Loaded) {
-    log::info("CART3R GD AI v0.1.0 loaded.");
-    log::info("Learning memory initialized. Gameplay control is not connected yet.");
+    g_ai.syncSettings();
+    log::info("CART3R GD AI v0.2.0 loaded.");
+    log::info("Training controls are available in this mod's Geode settings.");
+    log::info("Gameplay observation and player control are not connected yet.");
 }
-
