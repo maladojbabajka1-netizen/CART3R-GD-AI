@@ -1,16 +1,42 @@
-# CART3R GD AI v0.2.0
 
-Android Geometry Dash 2.2081 / Geode SDK 5.11.2.
+# CART3R GD AI
 
-## Install/build
+An experimental Geometry Dash AI controller for Geode.
 
-Upload the project contents to the GitHub repository, replacing the old files. Run the `Build Android Geode mod` workflow, then download the `CART3R-GD-AI-Android64` artifact.
+## Version
+0.4.0
 
-## Controls in this version
+## Platform
+- Android 64-bit
+- Geometry Dash 2.2081
+- Geode SDK 5.11.2
 
-Open Geode > CART3R GD AI > Settings:
-- Training Enabled
-- Learning Rate
-- Training Speed
+## Current Features
+- Automatic player input prototype
+- Configurable press duration
+- Configurable release duration
+- Best progress tracking
+- Death counter
+- In-game status display
 
-These are prototype settings only. This build does not yet observe gameplay, press/release the jump input, count attempts, or learn from real level outcomes. The next stage is connecting those systems.
+## How to Use
+1. Install the compiled .geode file.
+2. Open Geometry Dash.
+3. Open Geode and find CART3R GD AI.
+4. Open its settings.
+5. Enable Auto Control.
+6. Enter a level.
+
+## Important
+Auto Control currently sends fixed-interval inputs.
+It does not yet understand obstacles or learn
+a successful gameplay strategy.
+
+Test in Practice Mode first.
+
+## Future Plans
+- Observe player movement
+- Detect obstacles
+- Learn from failed attempts
+- Improve timing through repeated attempts
+- Develop an adaptive AI controller
