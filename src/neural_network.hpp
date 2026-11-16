@@ -9,62 +9,106 @@
 
 namespace CART3R {
 
-    constexpr std::size_t INPUT_SIZE = 8;
-    constexpr std::size_t HIDDEN_SIZE = 16;
+    constexpr std::size_t INPUT_SIZE = 64;
+    constexpr std::size_t HIDDEN_SIZE = 1024;
     constexpr std::size_t OUTPUT_SIZE = 3;
+
+    using HiddenLayer =
+        std::array<float, HIDDEN_SIZE>;
+
+    using WeightMatrix =
+        std::array<std::array<float, HIDDEN_SIZE>, HIDDEN_SIZE>;
 
     class NeuralNetwork {
     private:
         std::array<std::array<float, HIDDEN_SIZE>, INPUT_SIZE> weights1{};
-        std::array<float, HIDDEN_SIZE> biases1{};
+        WeightMatrix weights2{};
+        WeightMatrix weights3{};
 
-        std::array<std::array<float, OUTPUT_SIZE>, HIDDEN_SIZE> weights2{};
-        std::array<float, OUTPUT_SIZE> biases2{};
+        std::array<std::array<float, OUTPUT_SIZE>, HIDDEN_SIZE> weights4{};
 
-        static float sigmoid(float x) {
-            x = std::clamp(x, -20.0f, 20.0f);
-            return 1.0f / (1.0f + std::exp(-x));
-        }
+        HiddenLayer biases1{};
+        HiddenLayer biases2{};
+        HiddenLayer biases3{};
+
+        std::array<float, OUTPUT_SIZE> biases4{};
 
         static float randomWeight() {
             static std::mt19937 rng(std::random_device{}());
-            static std::uniform_real_distribution<float> dist(-0.5f, 0.5f);
+            static std::uniform_real_distribution<float> dist(-0.05f, 0.05f);
             return dist(rng);
+        }
+
+        static float activation(float x) {
+            return std::tanh(x);
         }
 
     public:
         NeuralNetwork() {
             for (auto& row : weights1)
-                for (auto& weight : row)
-                    weight = randomWeight();
+                for (auto& w : row)
+                    w = randomWeight();
 
             for (auto& row : weights2)
-                for (auto& weight : row)
-                    weight = randomWeight();
+                for (auto& w : row)
+                    w = randomWeight();
+
+            for (auto& row : weights3)
+                for (auto& w : row)
+                    w = randomWeight();
+
+            for (auto& row : weights4)
+                for (auto& w : row)
+                    w = randomWeight();
         }
 
         std::array<float, OUTPUT_SIZE> predict(
             const std::array<float, INPUT_SIZE>& input
         ) const {
-            std::array<float, HIDDEN_SIZE> hidden{};
+            HiddenLayer first{};
+            HiddenLayer second{};
+            HiddenLayer third{};
+
             std::array<float, OUTPUT_SIZE> output{};
 
+            // Input -> Hidden layer 1
             for (std::size_t h = 0; h < HIDDEN_SIZE; ++h) {
                 float sum = biases1[h];
 
                 for (std::size_t i = 0; i < INPUT_SIZE; ++i)
                     sum += input[i] * weights1[i][h];
 
-                hidden[h] = sigmoid(sum);
+                first[h] = activation(sum);
             }
 
+            // Hidden layer 1 -> Hidden layer 2
+            for (std::size_t h = 0; h < HIDDEN_SIZE; ++h) {
+                float sum = biases2[h];
+
+                for (std::size_t i = 0; i < HIDDEN_SIZE; ++i)
+                    sum += first[i] * weights2[i][h];
+
+                second[h] = activation(sum);
+            }
+
+            // Hidden layer 2 -> Hidden layer 3
+            for (std::size_t h = 0; h < HIDDEN_SIZE; ++h) {
+                float sum = biases3[h];
+
+                for (std::size_t i = 0; i < HIDDEN_SIZE; ++i)
+                    sum += second[i] * weights3[i][h];
+
+                third[h] = activation(sum);
+            }
+
+            // Hidden layer 3 -> Output
             for (std::size_t o = 0; o < OUTPUT_SIZE; ++o) {
-                float sum = biases2[o];
+                float sum = biases4[o];
 
-                for (std::size_t h = 0; h < HIDDEN_SIZE; ++h)
-                    sum += hidden[h] * weights2[h][o];
+                for (std::size_t i = 0; i < HIDDEN_SIZE; ++i)
+                    sum += third[i] * weights4[i][o];
 
-                output[o] = sigmoid(sum);
+                output[o] = activation(sum);
             }
 
             return output;
