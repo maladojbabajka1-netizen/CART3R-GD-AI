@@ -1,42 +1,55 @@
 
 # CART3R GD AI
 
-An experimental Geometry Dash AI controller for Geode.
+An experimental Geometry Dash AI mod for Android.
 
-## Version
-0.4.0
+**Version:** 0.5.0  
+**Game version:** 2.2081  
+**Platform:** Android64  
+**Geode SDK:** 5.11.2
 
-## Platform
-- Android 64-bit
-- Geometry Dash 2.2081
-- Geode SDK 5.11.2
+## Features
 
-## Current Features
-- Automatic player input prototype
-- Configurable press duration
-- Configurable release duration
-- Best progress tracking
-- Death counter
-- In-game status display
+- Automatic player input.
+- Adaptive Learning Mode.
+- Tracks best progress on each level.
+- Tracks deaths and attempts.
+- Saves timing experiments between attempts.
+- Adjustable press duration and learning rate.
 
-## How to Use
-1. Install the compiled .geode file.
-2. Open Geometry Dash.
-3. Open Geode and find CART3R GD AI.
-4. Open its settings.
-5. Enable Auto Control.
-6. Enter a level.
+## Adaptive Learning
 
-## Important
-Auto Control currently sends fixed-interval inputs.
-It does not yet understand obstacles or learn
-a successful gameplay strategy.
+CART3R experiments with different input timings.
 
-Test in Practice Mode first.
+After each attempt, it:
+1. Records the progress reached.
+2. Saves a new personal best.
+3. Adjusts its timing when an attempt does not improve.
+4. Tries again using the updated timing.
 
-## Future Plans
-- Observe player movement
-- Detect obstacles
-- Learn from failed attempts
-- Improve timing through repeated attempts
-- Develop an adaptive AI controller
+This is an early learning prototype. It does not visually recognize obstacles or understand level layouts.
+
+## Settings
+
+| Setting | Description |
+|---|---|
+| Auto Control | Enables automatic inputs |
+| Adaptive Learning | Enables timing adjustments |
+| Press Duration | Controls input hold duration |
+| Release Duration | Controls starting interval |
+| Learning Rate | Controls adjustment size |
+
+## Installation
+
+1. Build the Android64 mod using GitHub Actions.
+2. Download the build artifact.
+3. Extract the `.geode` file.
+4. Install it through Geode.
+
+## Project Status
+
+CART3R is experimental. Build success does not guarantee that automatic gameplay or adaptive learning works correctly in every level.
+
+## Developer
+
+CART3R
