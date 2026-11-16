@@ -4,33 +4,73 @@
 
 #include <algorithm>
 #include <string>
+#include <cmath>
+#include <limits>
 
 using namespace geode::prelude;
 
 namespace {
+
     std::string makeLevelKey(GJGameLevel* level) {
         if (!level) return "unknown";
 
         auto id = level->m_levelID.value();
 
-        if (id > 0) {
+        if (id > 0)
             return "level-" + std::to_string(id);
-        }
 
         return "local-" + std::string(level->m_levelName);
     }
+
+    bool isSpike(int id) {
+        switch (id) {
+            case 8:
+            case 39:
+            case 103:
+            case 144:
+            case 145:
+            case 392:
+            case 458:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    bool isSaw(int id) {
+        switch (id) {
+            case 88:
+            case 89:
+            case 98:
+            case 1705:
+            case 1706:
+            case 1707:
+                return true;
+            default:
+                return false;
+        }
+    }
+
 }
 
 class $modify(CART3RAIPlayLayer, PlayLayer) {
+
     struct Fields {
         CCLabelBMFont* hud = nullptr;
+
         std::string saveKey;
 
         float inputTimer = 0.f;
         float hudTimer = 0.f;
+        float scanTimer = 0.f;
 
         float currentReleaseTime = 0.18f;
         float stepSize = 0.03f;
+
+        float nearestHazardDistance =
+            std::numeric_limits<float>::max();
+
+        std::string nearestHazard = "NONE";
 
         int direction = 1;
         int attemptBestPercent = 0;
@@ -45,7 +85,11 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
         bool useReplay,
         bool dontCreateObjects
     ) {
-        if (!PlayLayer::init(level, useReplay, dontCreateObjects)) {
+        if (!PlayLayer::init(
+            level,
+            useReplay,
+            dontCreateObjects
+        )) {
             return false;
         }
 
@@ -70,7 +114,7 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
             CCDirector::sharedDirector()->getWinSize();
 
         m_fields->hud = CCLabelBMFont::create(
-            "CART3R AI | READY",
+            "CART3R AI | DETECTOR STARTING",
             "bigFont.fnt"
         );
 
@@ -96,8 +140,55 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
         }
     }
 
+    // Check the actual level objects ahead of the player.
+    void scanObstacles() {
+        m_fields->nearestHazardDistance =
+            std::numeric_limits<float>::max();
+
+        m_fields->nearestHazard = "NONE";
+
+        if (!m_player1)
+            return;
+
+        float playerX = m_player1->getPositionX();
+
+        for (auto* obj : CCArrayExt<GameObject>(m_objects)) {
+            if (!obj)
+                continue;
+
+            int id = obj->m_objectID;
+
+            bool spike = isSpike(id);
+            bool saw = isSaw(id);
+
+            if (!spike && !saw)
+                continue;
+
+            float distance =
+                obj->getPositionX() - playerX;
+
+            // Ignore objects behind the player.
+            if (distance <= 0.f)
+                continue;
+
+            // Only inspect nearby objects.
+            if (distance > 1200.f)
+                continue;
+
+            if (distance <
+                m_fields->nearestHazardDistance) {
+
+                m_fields->nearestHazardDistance = distance;
+
+                m_fields->nearestHazard =
+                    spike ? "SPIKE" : "SAW";
+            }
+        }
+    }
+
     void updateHUD() {
-        if (!m_fields->hud) return;
+        if (!m_fields->hud)
+            return;
 
         auto mod = Mod::get();
 
@@ -125,17 +216,26 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
 
         std::string mode = "MANUAL";
 
-        if (autoEnabled && learning) {
+        if (autoEnabled && learning)
             mode = "LEARNING";
-        }
-        else if (autoEnabled) {
+        else if (autoEnabled)
             mode = "AUTO";
+
+        std::string distanceText = "NONE";
+
+        if (m_fields->nearestHazard != "NONE") {
+            distanceText = fmt::format(
+                "{} {:.0f}u",
+                m_fields->nearestHazard,
+                m_fields->nearestHazardDistance
+            );
         }
 
         auto label = fmt::format(
-            "CART3R AI | {} | {}% | BEST {}% | DEATHS {}",
+            "CART3R | {} | {}% | HAZARD: {} | BEST: {}% | DEATHS: {}",
             mode,
             percent,
+            distanceText,
             best,
             deaths
         );
@@ -144,7 +244,8 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
     }
 
     void recordAttempt(int percent) {
-        if (m_fields->attemptEnded) return;
+        if (m_fields->attemptEnded)
+            return;
 
         m_fields->attemptEnded = true;
 
@@ -161,7 +262,6 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
         bool learning =
             mod->getSettingValue<bool>("learning-mode");
 
-        // Save a new personal best and its timing.
         if (percent > best) {
             mod->setSavedValue<int64_t>(
                 m_fields->saveKey + "-best",
@@ -173,7 +273,6 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
                 m_fields->currentReleaseTime
             );
         }
-        // If the attempt did not improve, adjust the experiment.
         else if (autoEnabled && learning) {
             m_fields->direction *= -1;
 
@@ -183,7 +282,6 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
             );
         }
 
-        // Try a slightly different release interval.
         if (autoEnabled && learning && percent < 100) {
             m_fields->currentReleaseTime +=
                 m_fields->direction * m_fields->stepSize;
@@ -217,7 +315,6 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
         bool alive =
             m_player1 && !m_player1->m_isDead;
 
-        // A new attempt has started.
         if (alive &&
             m_fields->attemptEnded &&
             !m_hasCompletedLevel) {
@@ -225,6 +322,14 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
             m_fields->attemptEnded = false;
             m_fields->attemptBestPercent = 0;
             m_fields->inputTimer = 0.f;
+        }
+
+        // Scan the level every 0.1 seconds.
+        m_fields->scanTimer += dt;
+
+        if (alive && m_fields->scanTimer >= 0.1f) {
+            m_fields->scanTimer = 0.f;
+            scanObstacles();
         }
 
         if (!autoEnabled ||
@@ -283,7 +388,6 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
             percent
         );
 
-        // Record a completed level.
         if (m_hasCompletedLevel &&
             !m_fields->completionRecorded) {
 
@@ -313,7 +417,8 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
 
         PlayLayer::destroyPlayer(player, object);
 
-        if (object == m_anticheatSpike) return;
+        if (object == m_anticheatSpike)
+            return;
 
         auto mod = Mod::get();
 
@@ -339,7 +444,7 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("CART3R GD AI v0.5.0 loaded.");
-    log::info("Adaptive timing learning mode is available.");
-    log::info("This prototype does not visually recognize obstacles.");
+    log::info("CART3R GD AI loaded.");
+    log::info("Level-object obstacle scanner initialized.");
+    log::info("Scanner detects selected spike and saw object IDs.");
 }
