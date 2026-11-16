@@ -1,0 +1,11 @@
+{
+    "geode": "5.11.2",
+    "gd": {
+        "android": "2.2081"
+    },
+    "id": "carter.gdai",
+    "name": "CART3R GD AI",
+    "version": "v0.1.0",
+    "developer": "CART3R",
+    "description": "Experimental foundation for an AI that learns Geometry Dash through repeated attempts."
+}
