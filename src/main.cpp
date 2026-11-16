@@ -4,12 +4,13 @@
 
 #include <algorithm>
 #include <string>
-#include <cmath>
 #include <limits>
 
 using namespace geode::prelude;
 
 namespace {
+    constexpr float JUMP_DISTANCE = 105.f;
+    constexpr float JUMP_COOLDOWN = 0.25f;
 
     std::string makeLevelKey(GJGameLevel* level) {
         if (!level) return "unknown";
@@ -50,19 +51,17 @@ namespace {
                 return false;
         }
     }
-
 }
 
 class $modify(CART3RAIPlayLayer, PlayLayer) {
-
     struct Fields {
         CCLabelBMFont* hud = nullptr;
-
         std::string saveKey;
 
         float inputTimer = 0.f;
         float hudTimer = 0.f;
         float scanTimer = 0.f;
+        float jumpCooldown = 0.f;
 
         float currentReleaseTime = 0.18f;
         float stepSize = 0.03f;
@@ -71,6 +70,9 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
             std::numeric_limits<float>::max();
 
         std::string nearestHazard = "NONE";
+
+        GameObject* nearestHazardObject = nullptr;
+        GameObject* lastTriggeredHazard = nullptr;
 
         int direction = 1;
         int attemptBestPercent = 0;
@@ -114,7 +116,7 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
             CCDirector::sharedDirector()->getWinSize();
 
         m_fields->hud = CCLabelBMFont::create(
-            "CART3R AI | DETECTOR STARTING",
+            "CART3R | OBSTACLE AI READY",
             "bigFont.fnt"
         );
 
@@ -129,7 +131,6 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
         }
 
         updateHUD();
-
         return true;
     }
 
@@ -138,14 +139,16 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
             this->handleButton(false, 1, true);
             m_fields->holding = false;
         }
+
+        m_fields->inputTimer = 0.f;
     }
 
-    // Check the actual level objects ahead of the player.
     void scanObstacles() {
         m_fields->nearestHazardDistance =
             std::numeric_limits<float>::max();
 
         m_fields->nearestHazard = "NONE";
+        m_fields->nearestHazardObject = nullptr;
 
         if (!m_player1)
             return;
@@ -167,21 +170,15 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
             float distance =
                 obj->getPositionX() - playerX;
 
-            // Ignore objects behind the player.
-            if (distance <= 0.f)
+            if (distance <= 0.f || distance > 1200.f)
                 continue;
 
-            // Only inspect nearby objects.
-            if (distance > 1200.f)
-                continue;
-
-            if (distance <
-                m_fields->nearestHazardDistance) {
-
+            if (distance < m_fields->nearestHazardDistance) {
                 m_fields->nearestHazardDistance = distance;
-
                 m_fields->nearestHazard =
                     spike ? "SPIKE" : "SAW";
+
+                m_fields->nearestHazardObject = obj;
             }
         }
     }
@@ -199,31 +196,26 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
             mod->getSettingValue<bool>("learning-mode");
 
         auto best = mod->getSavedValue<int64_t>(
-            m_fields->saveKey + "-best",
-            0
+            m_fields->saveKey + "-best", 0
         );
 
         auto deaths = mod->getSavedValue<int64_t>(
-            m_fields->saveKey + "-deaths",
-            0
+            m_fields->saveKey + "-deaths", 0
         );
 
         int percent = std::clamp(
             static_cast<int>(this->getCurrentPercent()),
-            0,
-            100
+            0, 100
         );
 
         std::string mode = "MANUAL";
 
-        if (autoEnabled && learning)
-            mode = "LEARNING";
-        else if (autoEnabled)
-            mode = "AUTO";
+        if (autoEnabled)
+            mode = learning ? "LEARNING" : "AUTO JUMP";
 
         std::string distanceText = "NONE";
 
-        if (m_fields->nearestHazard != "NONE") {
+        if (m_fields->nearestHazardObject) {
             distanceText = fmt::format(
                 "{} {:.0f}u",
                 m_fields->nearestHazard,
@@ -252,8 +244,7 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
         auto mod = Mod::get();
 
         auto best = mod->getSavedValue<int64_t>(
-            m_fields->saveKey + "-best",
-            0
+            m_fields->saveKey + "-best", 0
         );
 
         bool autoEnabled =
@@ -264,8 +255,7 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
 
         if (percent > best) {
             mod->setSavedValue<int64_t>(
-                m_fields->saveKey + "-best",
-                percent
+                m_fields->saveKey + "-best", percent
             );
 
             mod->setSavedValue<float>(
@@ -321,13 +311,13 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
 
             m_fields->attemptEnded = false;
             m_fields->attemptBestPercent = 0;
+            m_fields->lastTriggeredHazard = nullptr;
             m_fields->inputTimer = 0.f;
         }
 
-        // Scan the level every 0.1 seconds.
         m_fields->scanTimer += dt;
 
-        if (alive && m_fields->scanTimer >= 0.1f) {
+        if (alive && m_fields->scanTimer >= 0.05f) {
             m_fields->scanTimer = 0.f;
             scanObstacles();
         }
@@ -338,7 +328,6 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
             !alive) {
 
             releaseAutoInput();
-            m_fields->inputTimer = 0.f;
         }
         else {
             float pressTime = std::clamp(
@@ -347,40 +336,46 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
                 0.50f
             );
 
-            float releaseTime = learning
-                ? m_fields->currentReleaseTime
-                : mod->getSettingValue<float>("release-duration");
-
-            releaseTime = std::clamp(
-                releaseTime,
-                0.02f,
-                1.00f
+            m_fields->jumpCooldown = std::max(
+                0.f,
+                m_fields->jumpCooldown - dt
             );
 
-            m_fields->inputTimer += dt;
+            // Release a jump after its configured duration.
+            if (m_fields->holding) {
+                m_fields->inputTimer += dt;
 
+                if (m_fields->inputTimer >= pressTime) {
+                    releaseAutoInput();
+                }
+            }
+
+            // Jump once when a new detected hazard enters range.
             if (!m_fields->holding &&
-                m_fields->inputTimer >= releaseTime) {
-
-                m_fields->inputTimer = 0.f;
+                m_fields->jumpCooldown <= 0.f &&
+                m_fields->nearestHazardObject &&
+                m_fields->nearestHazardObject !=
+                    m_fields->lastTriggeredHazard &&
+                m_fields->nearestHazardDistance <= JUMP_DISTANCE) {
 
                 this->handleButton(true, 1, true);
+
                 m_fields->holding = true;
-            }
-            else if (m_fields->holding &&
-                     m_fields->inputTimer >= pressTime) {
-
                 m_fields->inputTimer = 0.f;
+                m_fields->jumpCooldown = JUMP_COOLDOWN;
 
-                this->handleButton(false, 1, true);
-                m_fields->holding = false;
+                m_fields->lastTriggeredHazard =
+                    m_fields->nearestHazardObject;
+
+                log::info(
+                    "CART3R: obstacle detected - jump triggered"
+                );
             }
         }
 
         int percent = std::clamp(
             static_cast<int>(this->getCurrentPercent()),
-            0,
-            100
+            0, 100
         );
 
         m_fields->attemptBestPercent = std::max(
@@ -409,8 +404,7 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
     ) {
         int percent = std::clamp(
             static_cast<int>(this->getCurrentPercent()),
-            0,
-            100
+            0, 100
         );
 
         releaseAutoInput();
@@ -423,8 +417,7 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
         auto mod = Mod::get();
 
         auto deaths = mod->getSavedValue<int64_t>(
-            m_fields->saveKey + "-deaths",
-            0
+            m_fields->saveKey + "-deaths", 0
         );
 
         mod->setSavedValue<int64_t>(
@@ -445,6 +438,5 @@ class $modify(CART3RAIPlayLayer, PlayLayer) {
 
 $on_mod(Loaded) {
     log::info("CART3R GD AI loaded.");
-    log::info("Level-object obstacle scanner initialized.");
-    log::info("Scanner detects selected spike and saw object IDs.");
+    log::info("Obstacle-triggered jump system initialized.");
 }
